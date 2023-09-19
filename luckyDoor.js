@@ -5,47 +5,61 @@ import clear from "clear";
 import * as terminalImage from "terminal-image";
 import { produce } from "immer";
 
+// If downloading images goes terribly wrong then set this to false
+// for a text-only mode:
 const SHOW_IMAGES = true;
 
-const getProfile = ({ member: { name, photo, id, is_organizer } }) =>
-  produce({ name, photo, id, is_organizer }, async (profile) => {
-    const imageUrl =
-      photo && photo.photo_link
-        ? photo.photo_link
-        : "https://cdn.vectorstock.com/i/preview-1x/82/99/no-image-available-like-missing-picture-vector-43938299.jpg";
-    const imgResponse = await fetch(imageUrl);
-    if (!name) {
-        profile.name = "Unknown person with no name";
-    }
-    if (SHOW_IMAGES) {
-      profile.image = await terminalImage.buffer(await imgResponse.buffer(), {
-        height: "60%",
-      });
-    }
-    delete profile.photo;
-  });
+const DEFAULT_MAX_SPIN_TIME = 120000;
 
-const showProfile = ({ name, image, isWinner = false }) => {
-  SHOW_IMAGES && clear();
-  console.log();
-  SHOW_IMAGES && console.log(image);
-  if (isWinner) {
-    console.error(`THE WINNER IS: ${name}!!!!!!!!!!!!!11111one`);
-  } else {
-    console.log(name);
+main({
+  //   maxEntrees: 20,
+  rumRounds: 1,
+  intervalInMs: 150,
+  //   maxSpinTimeInMs: 10000,
+  maxReRollTimeInMs: 2000,
+});
+
+async function main({
+  maxEntrees = 0,
+  rumRounds = 2,
+  intervalInMs = 80,
+  maxSpinTimeInMs = DEFAULT_MAX_SPIN_TIME,
+  maxReRollTimeInMs = DEFAULT_MAX_SPIN_TIME,
+}) {
+  await showMaxEntreesWarning(maxEntrees);
+
+  let profiles = await getAllProfiles(maxEntrees);
+
+  while (true) {
+    await doWelcome(profiles.length);
+
+    // The winner should always be the last one in the (randomised) list,
+    // unless it would take longer than maxSpinTimeInMs, or we are going
+    // to allow less time because we're re-rolling a new winner.
+    let spinTimeInMs = intervalInMs * (profiles.length - 1) * rumRounds;
+    if (spinTimeInMs > maxSpinTimeInMs) {
+      spinTimeInMs = maxSpinTimeInMs;
+    }
+    const winner = await selectWinner(profiles, spinTimeInMs, intervalInMs);
+
+    showProfile(winner);
+
+    if (await shouldContinue()) {
+      console.log(`Removing ${winner.name} and rolling a new winner...`);
+      rumRounds = 1;
+      profiles = _.filter(profiles, (p) => p.id !== winner.id);
+      profiles = _.shuffle(profiles);
+
+      // Ensure re-rolls due to non-attendance don't take too long:
+      maxSpinTimeInMs = maxReRollTimeInMs;
+      await sleep(2000);
+    } else {
+      process.exit(0);
+    }
   }
-};
+}
 
-const doWelcome = async (length) => {
-  clear();
-  console.log("Lucky Door prize generator");
-  console.log(`Picking a winner out of ${length} attendees...`);
-  await sleep(1000);
-};
-
-const sleep = (x) => new Promise((resolve) => setTimeout(() => resolve(), x));
-
-const getAllProfiles = async (max) => {
+async function getAllProfiles(max) {
   console.log(`Getting list of attendees...`);
   const response = await fetch(
     "https://api.meetup.com/amazon-web-services-user-group/events/295752887/rsvps?photo-host=public&response=yes"
@@ -68,7 +82,7 @@ const getAllProfiles = async (max) => {
     _.shuffle(withoutOrganizers).map(getProfile)
   );
   return randomised;
-};
+}
 
 async function selectWinner(profiles, spinTimeInMs, intervalInMs) {
   const now = Date.now();
@@ -95,6 +109,45 @@ async function selectWinner(profiles, spinTimeInMs, intervalInMs) {
   return winner;
 }
 
+async function getProfile({ member: { name, photo, id, is_organizer } }) {
+  return produce({ name, photo, id, is_organizer }, async (profile) => {
+    const imageUrl =
+      photo && photo.photo_link
+        ? photo.photo_link
+        : "https://cdn.vectorstock.com/i/preview-1x/82/99/no-image-available-like-missing-picture-vector-43938299.jpg";
+    const imgResponse = await fetch(imageUrl);
+    if (!name) {
+      profile.name = "Unknown person with no name";
+    }
+    if (SHOW_IMAGES) {
+      profile.image = await terminalImage.buffer(await imgResponse.buffer(), {
+        height: "60%",
+      });
+    }
+    delete profile.photo;
+  });
+}
+
+function showProfile({ name, image, isWinner = false }) {
+  SHOW_IMAGES && clear();
+  console.log();
+  SHOW_IMAGES && console.log(image);
+  if (isWinner) {
+    console.error(`THE WINNER IS: ${name}!!!!!!!!!!!!!11111one`);
+  } else {
+    console.log(name);
+  }
+}
+
+async function doWelcome(length) {
+  clear();
+  console.log("Lucky Door prize generator");
+  console.log(`Picking a winner out of ${length} attendees...`);
+  await sleep(1000);
+}
+
+const sleep = (x) => new Promise((resolve) => setTimeout(() => resolve(), x));
+
 async function shouldContinue() {
   const input = await new Promise((resolve) =>
     process.stdin.once("data", resolve)
@@ -105,45 +158,17 @@ async function shouldContinue() {
   return 1;
 }
 
-async function main({
-  maxEntrees = 0,
-  rumRounds = 2,
-  intervalInMs = 80,
-  maxSpinTimeInMs = 60000,
-  maxReRollSpinTimeInMs = 10000,
-}) {
-  let profiles = await getAllProfiles(maxEntrees);
-
-  while (true) {
-    await doWelcome(profiles.length);
-
-    let spinTimeInMs = intervalInMs * (profiles.length - 1) * rumRounds;
-    if (spinTimeInMs > maxSpinTimeInMs) {
-      spinTimeInMs = maxSpinTimeInMs;
-    }
-    const winner = await selectWinner(profiles, spinTimeInMs, intervalInMs);
-
-    showProfile(winner);
-
+async function showMaxEntreesWarning(maxEntrees) {
+  if (maxEntrees && maxEntrees > 0) {
+    console.warn(
+      "Warning: running in limited entrees mode, this is meant for testing only!"
+    );
+    console.warn(`Only ${maxEntrees} entrees will be used`);
+    console.warn("Press Enter to proceed anyway....");
     if (await shouldContinue()) {
-      console.log(`Removing ${winner.name} and rolling a new winner...`);
-      rumRounds = 1;
-      profiles = _.filter(profiles, (p) => p.id !== winner.id);
-      profiles = _.shuffle(profiles);
-
-      // Ensure re-rolls due to non-attendance don't take too long:
-      maxSpinTimeInMs = maxReRollSpinTimeInMs;
-      await sleep(2000);
+      return;
     } else {
       process.exit(0);
     }
   }
 }
-
-main({
-  //   maxEntrees: 200,
-  rumRounds: 2,
-  intervalInMs: 80,
-  //   maxSpinTimeInMs: 10000,
-  maxReRollSpinTimeInMs: 5000,
-});
