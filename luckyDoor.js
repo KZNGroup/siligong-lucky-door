@@ -4,12 +4,19 @@ import fetch from "node-fetch";
 import clear from "clear";
 import * as terminalImage from "terminal-image";
 import { produce } from "immer";
+import { Cache } from "file-system-cache";
 
 // If downloading images goes terribly wrong then set this to false
 // for a text-only mode:
 const SHOW_IMAGES = true;
 
 const DEFAULT_MAX_SPIN_TIME = 120000;
+
+const cache = new Cache({
+  basePath: "./.cache",
+  ns: "images",
+  hash: "sha1",
+});
 
 main({
   //   maxEntrees: 20,
@@ -67,12 +74,13 @@ async function getAllProfiles(max) {
   let allRsvps = await response.json();
 
   let withoutOrganizers = _.filter(allRsvps, (rsvp) => {
-    if (rsvp["member"]["is_organizer"] === true) {
-      console.log(`Removing organizer: ${rsvp["member"]["name"]}`);
-      return false;
-    }
+    // if (rsvp["member"]["is_organizer"] === true) {
+    //   console.log(`Removing organizer: ${rsvp["member"]["name"]}`);
+    //   return false;
+    // }
     return true;
-  }).slice(0, max - 1);
+  });
+  // .slice(0, max - 1);
   const numOrganizers = allRsvps.length - withoutOrganizers.length;
   console.log(`Removed ${numOrganizers} event organizers from the entry pool.`);
 
@@ -111,20 +119,36 @@ async function selectWinner(profiles, spinTimeInMs, intervalInMs) {
 
 async function getProfile({ member: { name, photo, id, is_organizer } }) {
   return produce({ name, photo, id, is_organizer }, async (profile) => {
-    const imageUrl =
-      photo && photo.photo_link
-        ? photo.photo_link
-        : "https://cdn.vectorstock.com/i/preview-1x/82/99/no-image-available-like-missing-picture-vector-43938299.jpg";
-    const imgResponse = await fetch(imageUrl);
-    if (!name) {
-      profile.name = "Unknown person with no name";
-    }
+    profile.name ??= "Unknown person with no name";
+
     if (SHOW_IMAGES) {
-      profile.image = await terminalImage.buffer(await imgResponse.buffer(), {
-        height: "60%",
-      });
+      profile.image = await getProfileImage(photo?.photo_link);
     }
     delete profile.photo;
+  });
+}
+
+async function getProfileImage(photo_link) {
+  if (!SHOW_IMAGES) {
+    return undefined;
+  }
+
+  const imageUrl =
+    photo_link ||
+    "https://cdn.vectorstock.com/i/preview-1x/82/99/no-image-available-like-missing-picture-vector-43938299.jpg";
+
+  let image = await cache.get(imageUrl);
+  if (!image) {
+    image = await fetchProfileImage(imageUrl);
+    cache.set(imageUrl, image);
+  }
+  return image;
+}
+
+async function fetchProfileImage(imageUrl) {
+  const imgResponse = await fetch(imageUrl);
+  return await terminalImage.buffer(await imgResponse.buffer(), {
+    height: "60%",
   });
 }
 

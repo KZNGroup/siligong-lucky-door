@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "clear": "^0.1.0",
+    "file-system-cache": "^2.4.4",
     "immer": "^2.0.0",
     "lodash": "^4.17.11",
     "node-fetch": "^2.3.0",
