@@ -15,9 +15,7 @@ const getProfile = ({ member: { name, photo, id, is_organizer } }) =>
         : "https://cdn.vectorstock.com/i/preview-1x/82/99/no-image-available-like-missing-picture-vector-43938299.jpg";
     const imgResponse = await fetch(imageUrl);
     if (!name) {
-      console.log("Someone has no name?");
-      console.log(JSON.stringify(profile, null, 2));
-      throw new Error("Someone has no name?");
+        profile.name = "Unknown person with no name";
     }
     if (SHOW_IMAGES) {
       profile.image = await terminalImage.buffer(await imgResponse.buffer(), {
@@ -143,7 +141,7 @@ async function main({
 }
 
 main({
-  maxEntrees: 200,
+  //   maxEntrees: 200,
   rumRounds: 2,
   intervalInMs: 80,
   //   maxSpinTimeInMs: 10000,
