@@ -69,7 +69,7 @@ async function main({
 async function getAllProfiles(max) {
   console.log(`Getting list of attendees...`);
   const response = await fetch(
-    "https://api.meetup.com/amazon-web-services-user-group/events/295752887/rsvps?photo-host=public&response=yes"
+    "https://api.meetup.com/amazon-web-services-user-group/events/304283214/rsvps?photo-host=public&response=yes"
   );
   let allRsvps = await response.json();
 
@@ -157,7 +157,7 @@ function showProfile({ name, image, isWinner = false }) {
   console.log();
   SHOW_IMAGES && console.log(image);
   if (isWinner) {
-    console.error(`THE WINNER IS: ${name}!!!!!!!!!!!!!11111one`);
+    console.error(`THE WINNER IS: ${name}!!!!!!!!!!!!!`);
   } else {
     console.log(name);
   }
