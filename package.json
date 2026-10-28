@@ -12,7 +12,7 @@
     "file-system-cache": "^2.4.4",
     "immer": "^2.0.0",
     "lodash": "^4.17.11",
-    "node-fetch": "^2.3.0",
+    "node-fetch": "^2.6.7",
     "terminal-image": "^0.1.2"
   }
 }
