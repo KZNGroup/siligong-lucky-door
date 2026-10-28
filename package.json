@@ -13,6 +13,6 @@
     "immer": "^2.0.0",
     "lodash": "^4.17.11",
     "node-fetch": "^2.3.0",
-    "terminal-image": "^0.1.2"
+    "terminal-image": "^5.0.1"
   }
 }
